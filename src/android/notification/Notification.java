@@ -31,9 +31,11 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.service.notification.StatusBarNotification;
+
 import androidx.core.app.NotificationCompat;
 import androidx.collection.ArraySet;
 import androidx.core.util.Pair;
+
 import android.util.Log;
 import android.util.SparseArray;
 
@@ -97,10 +99,10 @@ public final class Notification {
      * @param options Parsed notification options.
      * @param builder Pre-configured notification builder.
      */
-    Notification (Context context, Options options, NotificationCompat.Builder builder) {
-        this.context  = context;
-        this.options  = options;
-        this.builder  = builder;
+    Notification(Context context, Options options, NotificationCompat.Builder builder) {
+        this.context = context;
+        this.options = options;
+        this.builder = builder;
     }
 
     /**
@@ -110,9 +112,9 @@ public final class Notification {
      * @param options Parsed notification options.
      */
     public Notification(Context context, Options options) {
-        this.context  = context;
-        this.options  = options;
-        this.builder  = null;
+        this.context = context;
+        this.options = options;
+        this.builder = null;
     }
 
     /**
@@ -154,9 +156,9 @@ public final class Notification {
      * Notification type can be one of triggered or scheduled.
      */
     public Type getType() {
-        Manager mgr                    = Manager.getInstance(context);
+        Manager mgr = Manager.getInstance(context);
         StatusBarNotification[] toasts = mgr.getActiveNotifications();
-        int id                         = getId();
+        int id = getId();
 
         for (StatusBarNotification toast : toasts) {
             if (toast.getId() == id) {
@@ -171,7 +173,7 @@ public final class Notification {
      * For the app with target is android 12, we need to check if the app has “Alarm and Reminders” permission before using them else app throws SecurityException
      */
     public boolean checkAlarmPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S){
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             return true;
         } else {
             AlarmManager alarmManager = getAlarmMgr();
@@ -183,7 +185,7 @@ public final class Notification {
     /**
      * Schedule the local notification.
      *
-     * @param request Set of notification options.
+     * @param request  Set of notification options.
      * @param receiver Receiver to handle the trigger event.
      */
     void schedule(Request request, Class<?> receiver) {
@@ -225,45 +227,68 @@ public final class Notification {
         }
 
         for (Pair<Date, Intent> pair : intents) {
-            Date date     = pair.first;
-            long time     = date.getTime();
+            Date date = pair.first;
+            long time = date.getTime();
             Intent intent = pair.second;
 
             if (!date.after(new Date()) && trigger(intent, receiver))
                 continue;
 
-            if (!hasAlarmPermission)
-                continue; // Cannot schedule the alarm.
+            // if (!hasAlarmPermission) continue; // disabled otherwise Android 14+ will never fire.
 
             PendingIntent pi = null;
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    pi = PendingIntent.getBroadcast(
+                pi = PendingIntent.getBroadcast(
                         context, 0, intent, PendingIntent.FLAG_IMMUTABLE | FLAG_CANCEL_CURRENT);
             } else {
-                    pi = PendingIntent.getBroadcast(
+                pi = PendingIntent.getBroadcast(
                         context, 0, intent, FLAG_CANCEL_CURRENT);
             }
 
             try {
-                switch (options.getPrio()) {
-                    case PRIORITY_MIN:
-                        mgr.setExact(RTC, time, pi);
-                        break;
-                    case PRIORITY_MAX:
-                        if (SDK_INT >= M) {
-                            mgr.setExactAndAllowWhileIdle(RTC_WAKEUP, time, pi);
-                        } else {
-                            mgr.setExact(RTC, time, pi);
-                        }
-                        break;
-                    default:
-                        mgr.setExact(RTC_WAKEUP, time, pi);
-                        break;
+
+                if (SDK_INT >= 34 || !hasAlarmPermission) {
+
+                    switch (options.getPrio()) {
+
+                        case PRIORITY_MIN:
+                            mgr.set(RTC, time, pi); // set is an inexact alarms that works with Android or with !hasAlarmPermission (also, RTC is better for Android vitals)
+                            break;
+
+                        case PRIORITY_MAX:
+                            mgr.set(RTC_WAKEUP, time, pi);
+                            break;
+
+                        default:
+                            mgr.set(RTC, time, pi);
+                            break;
                     }
-                } catch (Exception ignore) {
-                    // Samsung devices have a known bug where a 500 alarms limit
-                    // can crash the app
+                } else {
+
+                    switch (options.getPrio()) {
+
+                        case PRIORITY_MIN:
+                            mgr.setExact(RTC, time, pi);
+                            break;
+
+                        case PRIORITY_MAX:
+
+                            if (SDK_INT >= M) {
+                                mgr.setExactAndAllowWhileIdle(RTC_WAKEUP, time, pi);
+                            } else {
+                                mgr.setExact(RTC, time, pi);
+                            }
+                            break;
+
+                        default:
+                            mgr.setExact(RTC_WAKEUP, time, pi);
+                            break;
+                    }
                 }
+            } catch (Exception ignore) {
+                // Samsung devices have a known bug where a 500 alarms limit
+                // can crash the app
+            }
         }
     }
 
@@ -272,10 +297,9 @@ public final class Notification {
      *
      * @param intent The intent to broadcast.
      * @param cls    The broadcast class.
-     *
      * @return false if the receiver could not be invoked.
      */
-    private boolean trigger (Intent intent, Class<?> cls) {
+    private boolean trigger(Intent intent, Class<?> cls) {
         BroadcastReceiver receiver;
 
         try {
@@ -311,7 +335,7 @@ public final class Notification {
 
     /**
      * Cancel the scheduled future local notification.
-     *
+     * <p>
      * Create an intent that looks similar, to the one that was registered
      * using schedule. Making sure the notification id in the action is the
      * same. Now we can search for such an intent using the 'getService'
@@ -319,8 +343,8 @@ public final class Notification {
      */
     private void cancelScheduledAlarms() {
         SharedPreferences prefs = getPrefs(PREF_KEY_PID);
-        String id               = options.getIdentifier();
-        Set<String> actions     = prefs.getStringSet(id, null);
+        String id = options.getIdentifier();
+        Set<String> actions = prefs.getStringSet(id, null);
 
         if (actions == null)
             return;
@@ -331,10 +355,10 @@ public final class Notification {
             PendingIntent pi = null;
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
                 pi = PendingIntent.getBroadcast(
-                    context, 0, intent, PendingIntent.FLAG_IMMUTABLE  );
+                        context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
             } else {
                 pi = PendingIntent.getBroadcast(
-                    context, 0, intent, 0);
+                        context, 0, intent, 0);
             }
 
             if (pi != null) {
@@ -374,7 +398,7 @@ public final class Notification {
      * @param updates  The properties to update.
      * @param receiver Receiver to handle the trigger event.
      */
-    void update (JSONObject updates, Class<?> receiver) {
+    void update(JSONObject updates, Class<?> receiver) {
         mergeJSONObjects(updates);
         persist(null);
 
@@ -412,7 +436,7 @@ public final class Notification {
      *
      * @param ids List of intent actions to persist.
      */
-    private void persist (Set<String> ids) {
+    private void persist(Set<String> ids) {
         String id = options.getIdentifier();
         SharedPreferences.Editor editor;
 
@@ -431,9 +455,9 @@ public final class Notification {
     /**
      * Remove the notification from the Android shared Preferences.
      */
-    private void unpersist () {
-        String[] keys = { PREF_KEY_ID, PREF_KEY_PID };
-        String id     = options.getIdentifier();
+    private void unpersist() {
+        String[] keys = {PREF_KEY_ID, PREF_KEY_PID};
+        String id = options.getIdentifier();
         SharedPreferences.Editor editor;
 
         for (String key : keys) {
@@ -462,13 +486,13 @@ public final class Notification {
     /**
      * Merge two JSON objects.
      */
-    private void mergeJSONObjects (JSONObject updates) {
+    private void mergeJSONObjects(JSONObject updates) {
         JSONObject dict = options.getDict();
-        Iterator it     = updates.keys();
+        Iterator it = updates.keys();
 
         while (it.hasNext()) {
             try {
-                String key = (String)it.next();
+                String key = (String) it.next();
                 dict.put(key, updates.opt(key));
             } catch (JSONException e) {
                 e.printStackTrace();
@@ -492,17 +516,16 @@ public final class Notification {
      * Find the cached builder instance.
      *
      * @param key The key under where to look for the builder.
-     *
      * @return null if no builder instance could be found.
      */
-    static NotificationCompat.Builder getCachedBuilder (int key) {
+    static NotificationCompat.Builder getCachedBuilder(int key) {
         return (cache != null) ? cache.get(key) : null;
     }
 
     /**
      * Caches the builder instance so it can be used later.
      */
-    private void clearCache () {
+    private void clearCache() {
         if (cache != null) {
             cache.delete(getId());
         }
@@ -511,14 +534,14 @@ public final class Notification {
     /**
      * Shared private preferences for the application.
      */
-    private SharedPreferences getPrefs (String key) {
+    private SharedPreferences getPrefs(String key) {
         return context.getSharedPreferences(key, Context.MODE_PRIVATE);
     }
 
     /**
      * Notification manager for the application.
      */
-    private NotificationManager getNotMgr () {
+    private NotificationManager getNotMgr() {
         return (NotificationManager) context
                 .getSystemService(Context.NOTIFICATION_SERVICE);
     }
@@ -526,7 +549,7 @@ public final class Notification {
     /**
      * Alarm manager for the application.
      */
-    private AlarmManager getAlarmMgr () {
+    private AlarmManager getAlarmMgr() {
         return (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
     }
 
