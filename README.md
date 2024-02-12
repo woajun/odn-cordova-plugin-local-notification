@@ -2,6 +2,8 @@
 
 This is a fork of a fork (from [Moodle HQ](https://moodle.com/)) by Notorious. What changed? Other than all the fixes by moodle (up until Android 13 it works fine), now it even works for Android 14, using set() instead of setExact()!
 
+To install it: `cordova plugin add https://github.com/TheNotorius0/cordova-plugin-local-notification.git`
+
 # cordova-plugin-local-notification (fork)
 
 This is a fork of `cordova-plugin-local-notification` by [Moodle HQ](https://moodle.com/). If you are looking for the documentation, you can read the original at [katzer/cordova-plugin-local-notifications](https://github.com/katzer/cordova-plugin-local-notifications).
