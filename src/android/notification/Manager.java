@@ -28,6 +28,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.media.AudioAttributes;
+import android.net.Uri;
 import android.service.notification.StatusBarNotification;
 import androidx.core.app.NotificationManagerCompat;
 
@@ -122,6 +124,13 @@ public final class Manager {
         channel = new NotificationChannel(
                 CHANNEL_ID, CHANNEL_NAME, IMPORTANCE_DEFAULT);
 
+        // 알림음 커스텀 설정 시작
+        AudioAttributes soundAttributes = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .build();
+
+        channel.setSound(Uri.parse("android.resource://com.odn.dtx.e66/raw/siren"),soundAttributes);
+        // 알림음 커스텀 설정 종료
         mgr.createNotificationChannel(channel);
     }
 
